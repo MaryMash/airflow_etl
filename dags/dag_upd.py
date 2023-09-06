@@ -13,6 +13,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.sensors.filesystem import FileSensor
 from airflow.utils.task_group import TaskGroup
+from airflow.operators.sql import SQLCheckOperator
 
 task_logger = logging.getLogger("airflow.task")
 http_conn_id = HttpHook.get_connection('http_conn_id')
@@ -232,6 +233,18 @@ with DAG(
                            'date_column': 'date_id' if i == 'customer_research'
                                           else 'date_time'})
         )
+    with TaskGroup(group_id='sql_check') as gr2:
+
+        sql_check = SQLCheckOperator(
+            task_id="check_row_count_user_order_log",
+            conn_id=POSTGRES_CONN_ID,
+            sql="/sql/check/row_count_user_order_log.sql")
+
+        sql_check2 = SQLCheckOperator(
+            task_id="check_row_count_user_activity_log",
+            conn_id=POSTGRES_CONN_ID,
+            sql="/sql/check/row_count_user_activity_log.sql")
+
     update_f_tables = PostgresOperator(
         task_id='update_f_sales',
         postgres_conn_id=POSTGRES_CONN_ID,
@@ -253,6 +266,7 @@ with DAG(
             >> get_increment
             >> gr1
             >> load_increment_data
+            >> gr2
             >> update_f_tables
             >> update_d_tables
 
