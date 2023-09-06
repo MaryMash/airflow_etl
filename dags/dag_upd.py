@@ -10,6 +10,7 @@ from airflow import DAG
 from airflow.hooks.http_hook import HttpHook
 from airflow.operators.python_operator import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.sensors.filesystem import FileSensor
 from airflow.utils.task_group import TaskGroup
 
@@ -162,7 +163,7 @@ with DAG(
         'sales_mart_updated',
         default_args=args,
         catchup=True,
-        start_date=datetime.today() - timedelta(days=7),
+        start_date=datetime.today() - timedelta(days=1),
         end_date=datetime.today() - timedelta(days=1),
 ) as dag:
     generate_report = PythonOperator(
@@ -231,11 +232,28 @@ with DAG(
                            'date_column': 'date_id' if i == 'customer_research'
                                           else 'date_time'})
         )
+    update_f_tables = PostgresOperator(
+        task_id='update_f_sales',
+        postgres_conn_id=POSTGRES_CONN_ID,
+        sql="/sql/mart/f_sales.sql",
+        parameters={"date": {business_dt}}
+    )
+
+    update_d_tables = list()
+    for i in ['d_item', 'd_customer', 'd_city']:
+        update_d_tables.append(PostgresOperator(
+            task_id=f"update_{i}",
+            postgres_conn_id=POSTGRES_CONN_ID,
+            sql=f"/sql/mart/{i}.sql"
+            )
+        )
     (
             generate_report
             >> get_report
             >> get_increment
             >> gr1
             >> load_increment_data
+            >> update_f_tables
+            >> update_d_tables
 
     )
