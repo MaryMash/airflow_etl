@@ -9,11 +9,11 @@ import requests
 from airflow import DAG
 from airflow.hooks.http_hook import HttpHook
 from airflow.operators.python_operator import PythonOperator
+from airflow.operators.sql import SQLCheckOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.sensors.filesystem import FileSensor
 from airflow.utils.task_group import TaskGroup
-from airflow.operators.sql import SQLCheckOperator
 
 task_logger = logging.getLogger("airflow.task")
 http_conn_id = HttpHook.get_connection('http_conn_id')
@@ -163,8 +163,9 @@ def upload_inc_data_to_staging(filename, date, pg_table,
 with DAG(
         'sales_mart_updated',
         default_args=args,
+        schedule_interval="@daily",
         catchup=True,
-        start_date=datetime.today() - timedelta(days=1),
+        start_date=datetime.today() - timedelta(days=7),
         end_date=datetime.today() - timedelta(days=1),
 ) as dag:
     generate_report = PythonOperator(
@@ -238,7 +239,8 @@ with DAG(
         sql_check = SQLCheckOperator(
             task_id="check_row_count_user_order_log",
             conn_id=POSTGRES_CONN_ID,
-            sql="/sql/check/row_count_user_order_log.sql")
+            sql="/sql/check/row_count_user_order_log.sql",
+        )
 
         sql_check2 = SQLCheckOperator(
             task_id="check_row_count_user_activity_log",
